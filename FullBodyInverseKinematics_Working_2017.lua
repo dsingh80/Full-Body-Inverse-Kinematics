@@ -1,3 +1,5 @@
+
+--  CONSTANTS  --
 local FastWait = game:GetService("RunService").RenderStepped
 
 local Character = script.Parent
@@ -38,6 +40,8 @@ Hip.C1 = CFrame.new(0,-NewTorso.Size.Y/2, 0)
 
 local defHip, defN, defRS, defLS, defRE, defLE, defRH, defLH, defRK, defLK = Hip.C0, Neck.C0, RS.C1, LS.C1, RE.C1, LE.C1, RH.C1, LH.C1, RK.C1, LK.C1
 
+
+--  Useful Functions  --
 function resetJoints(pow, style, speed)
 	local animationMode = _G.AnimationMode
 	for i=1, (speed or 10) do
@@ -86,6 +90,8 @@ end
 local URALen,LRALen = 1.5, 1.5                  -- length of each segment of arm
 local ULALen,LLALen = 1.5, 1.5                  -- length of each segment of arm
 
+-- The "backwards" parameter exists from an older method
+-- I was testing FABRIK against this algorithm
 --[[ RIGHT ARM ]]--
 function getRSCF(backwards)
 	if backwards == true then
@@ -154,36 +160,12 @@ function getLLEND()
 	return LLL.CFrame * CFrame.new(0,-LLL.Size.Y/2,0)
 end
 
-
-local totalLegLen = (getRLEND().p-getRHCF().p).magnitude
-local halfLegLen = totalLegLen/2
-local kneeLoc = getRHCF() * CFrame.new(0,-halfLegLen,0)
-local URLLen = (kneeLoc.p - getRHCF().p).magnitude
-local LRLLen = (kneeLoc.p-getRLEND().p).magnitude
-
-totalLegLen = (getLLEND().p-getLHCF().p).magnitude
-halfLegLen = totalLegLen/2
-kneeLoc = getLHCF() * CFrame.new(0,-halfLegLen,0)
-local ULLLen = (kneeLoc.p - getLHCF().p).magnitude
-local LLLLen = (kneeLoc.p-getLLEND().p).magnitude
-
-
-local MAX_REACH_LENGTH = URALen + LRALen + Torso.Size.Y          -- Maximum distance of arms from target
-local MAX_LEG_REACH = (URLLen + LRLLen)                          -- Maximum length of the legs
-local MAX_LEG_RAY_LENGTH = math.cos(math.pi/4) * MAX_LEG_REACH   -- Max length of raycast for walking/running animation
-print("MAX_LEG_RAY_LENGTH : ", MAX_LEG_RAY_LENGTH)
-print("MAX_LEG_REACH : ", MAX_LEG_REACH)
-local MAX_STRIDE = 5                                             -- Max distance between leg targets
-local MIN_WALK_SPEED = 1                                         -- Walkspeed required to begin walking IK
-
-
-local HIP_HEIGHT = 0 -- x<=0
-local DEFAULT_HIP_LEAN = 0          -- -math.pi/12 <= x <= math.pi/12
-local HIP_LEAN = DEFAULT_HIP_LEAN   -- Don't bother adjusting this
-local RS_HEIGHT = .1 -- -1 <= x <= 1
-local LS_HEIGHT = .1 -- -1 <= x <= 1
-
 local Constraints = {
+--[[    
+	JOINT = {
+		AXIS = {POSITIVE_CONSTRAINT,   NEGATIVECONSTRAINT},
+	}
+]]--
 	RH = {
 		X = {math.pi/4, -(5/6)*math.pi},
 		Y = {math.pi/4, -math.pi/2},
@@ -211,115 +193,6 @@ local Constraints = {
 	}
 }
 
-function getRLTarg()
-	if HumanoidRootPart.Velocity.magnitude >= MIN_WALK_SPEED then
-		-- Moving --
-		local TARGET_VELOCITY = Vector3.new(HumanoidRootPart.Velocity.X, 0, HumanoidRootPart.Velocity.Z)
-		
-		local TARGET_RAY = Ray.new(getRKCF().p, TARGET_VELOCITY.unit)
-		
-		local COLLISION_PART, COLLISION_LOCATION = game.Workspace:FindPartOnRayWithIgnoreList(TARGET_RAY, {Character})
-		if COLLISION_PART ~= nil then
-			local DIST_TO_COLLISION = (COLLISION_LOCATION-TARGET_RAY.Origin).magnitude
-			
-			--print("FOUND COLLISION PART")
-			if DIST_TO_COLLISION <= MAX_LEG_REACH then
-				-- Successful collision --
-				COLLISION_LOCATION = COLLISION_LOCATION + HumanoidRootPart.CFrame.upVector*LRLLen/4
-				return COLLISION_LOCATION
-			end
-		else
-			-- No Collision Yet --
-			TARGET_RAY = Ray.new(getRKCF().p+(MAX_LEG_RAY_LENGTH * TARGET_RAY.Direction), Vector3.new(0,-100,0))
-			COLLISION_PART, COLLISION_LOCATION = game.Workspace:FindPartOnRayWithIgnoreList(TARGET_RAY, {Character})
-			local DIST_TO_COLLISION = (COLLISION_LOCATION-getRKCF().p).magnitude
-			
-			COLLISION_LOCATION = COLLISION_LOCATION + HumanoidRootPart.CFrame.upVector*LRLLen/4
-			if COLLISION_PART ~=nil then
-				--print("FOUND COLLISION PART")
-				return COLLISION_LOCATION
-			end
-		end
-	else
-		-- Not moving --
-		
-		--Raycast straight down from leg in case there is a hill
-		local TARGET_RAY = Ray.new(getRHCF().p, (-HumanoidRootPart.CFrame.upVector).unit)
-		
-		local COLLISION_PART, COLLISION_LOCATION = game.Workspace:FindPartOnRayWithIgnoreList(TARGET_RAY, {Character})
-		if COLLISION_PART ~= nil then
-			local DIST_TO_COLLISION = (COLLISION_LOCATION-TARGET_RAY.Origin).magnitude
-			
-			--print("FOUND COLLISION PART_NOT MOVING @",DIST_TO_COLLISION)
-			if DIST_TO_COLLISION <= MAX_LEG_REACH then
-				-- Successful collision --
-				COLLISION_LOCATION = COLLISION_LOCATION + HumanoidRootPart.CFrame.upVector*LRLLen/4
-				return COLLISION_LOCATION
-			end
-		else
-			-- No Collision Yet --
-			--print("NO COLLISION PART_NOT MOVING")
-			return (Torso.CFrame * CFrame.new(Torso.Size.X/2 - URL.Size.X/2, -Torso.Size.Y/2-URLLen-LRLLen, 0)).p
-		end	
-	end
-	
-end
-
-function getLLTarg()
-	if HumanoidRootPart.Velocity.magnitude >= MIN_WALK_SPEED then
-		-- Moving --
-		local TARGET_VELOCITY = Vector3.new(HumanoidRootPart.Velocity.X, 0, HumanoidRootPart.Velocity.Z)
-		
-		local TARGET_RAY = Ray.new(getLKCF().p, TARGET_VELOCITY.unit)
-		
-		local COLLISION_PART, COLLISION_LOCATION = game.Workspace:FindPartOnRayWithIgnoreList(TARGET_RAY, {Character})
-		if COLLISION_PART ~= nil then
-			local DIST_TO_COLLISION = (COLLISION_LOCATION-TARGET_RAY.Origin).magnitude
-			
-			--print("FOUND COLLISION PART")
-			if DIST_TO_COLLISION <= MAX_LEG_REACH then
-				-- Successful collision --
-				COLLISION_LOCATION = COLLISION_LOCATION + HumanoidRootPart.CFrame.upVector*LRLLen/4
-				return COLLISION_LOCATION
-			end
-		else
-			-- No Collision Yet --
-			TARGET_RAY = Ray.new(getLKCF().p+(MAX_LEG_RAY_LENGTH * TARGET_RAY.Direction), Vector3.new(0,-100,0))
-			COLLISION_PART, COLLISION_LOCATION = game.Workspace:FindPartOnRayWithIgnoreList(TARGET_RAY, {Character})
-			local DIST_TO_COLLISION = (COLLISION_LOCATION-getLKCF().p).magnitude
-			
-			COLLISION_LOCATION = COLLISION_LOCATION + HumanoidRootPart.CFrame.upVector*LRLLen/4
-			if COLLISION_PART ~=nil then
-				--print("FOUND COLLISION PART")
-				return COLLISION_LOCATION
-			end
-		end
-	else
-		-- Not moving --
-		
-		--Raycast straight down from leg in case there is a hill
-		local TARGET_RAY = Ray.new(getLHCF().p, (-HumanoidRootPart.CFrame.upVector).unit)
-		
-		local COLLISION_PART, COLLISION_LOCATION = game.Workspace:FindPartOnRayWithIgnoreList(TARGET_RAY, {Character})
-		if COLLISION_PART ~= nil then
-			local DIST_TO_COLLISION = (COLLISION_LOCATION-TARGET_RAY.Origin).magnitude
-			
-			--print("FOUND COLLISION PART")
-			if DIST_TO_COLLISION <= MAX_LEG_REACH then
-				-- Successful collision --
-				COLLISION_LOCATION = COLLISION_LOCATION + HumanoidRootPart.CFrame.upVector*LRLLen/4
-				return COLLISION_LOCATION
-			end
-		else
-			-- No Collision Yet --
-			return (Torso.CFrame * CFrame.new(-Torso.Size.X/2 + ULL.Size.X/2, -Torso.Size.Y/2-ULLLen-LLLLen, 0)).p
-		end	
-	end
-	
-end	
-	
-	
-	
 	
 function updateRL(END_EFFECTOR)
 	if END_EFFECTOR == nil then return end
@@ -515,26 +388,6 @@ function updateRA(END_EFFECTOR)
 	local RS_X, RS_Y, RS_Z = 0;
 	local RE_X, RE_Y, RE_Z = 0;
 	
-	
-	-- If target is out of reach
-	if TARGET_DIST >= URLLen + LRLLen then
-		local HIP_VECTOR = (Torso.CFrame*CFrame.new(0,-Torso.Size.Y/2,0)):inverse() * END_EFFECTOR
-		local NECK_VECTOR = (Torso.CFrame*CFrame.new(0,Torso.Size.Y/2,0)):inverse() * END_EFFECTOR
-		local DIST_FROM_HIP = HIP_VECTOR.magnitude
-		-- TARGET WITHIN REACH --
-		local theta = math.atan2(-HIP_VECTOR.Z, HIP_VECTOR.Y)
-		local theta1 = (NECK_VECTOR.magnitude)^2 - Torso.Size.Y^2 - DIST_FROM_HIP^2
-		theta1 = theta1 / (-2 * Torso.Size.Y * DIST_FROM_HIP)
-		theta1 = math.acos(theta1)
-		
-		local HIP_X = theta - theta1
-		
-		--HIP_LEAN = DEFAULT_HIP_LEAN + HIP_X
-		--Hip.C0 = defHip * CFrame.new(0,Torso.Size.Y/2 * HIP_HEIGHT, 0) * CFrame.fromEulerAnglesXYZ(-HIP_X-HIP_LEAN, 0, 0)
-	else
-		HIP_LEAN = DEFAULT_HIP_LEAN
-	end
-	
 	RS_Z = math.atan2(TARGET_VECTOR.X, -TARGET_VECTOR.Y)
 	RS_Y = math.atan2(TARGET_VECTOR.X, -TARGET_VECTOR.Z)
 
@@ -558,7 +411,7 @@ function updateRA(END_EFFECTOR)
 		RS_Y = Constraints.RS.Y[2]
 	end
 	
-	local YZ_RATIO; --Used to make the leg move more naturally
+	local YZ_RATIO; --Used to move more naturally
 	if RS_Z < 0 then
 		YZ_RATIO = math.abs((Constraints.RS.Z[2]-RS_Z)/Constraints.RS.Z[2])
 		RS_Z = RS_Z * YZ_RATIO
@@ -593,6 +446,7 @@ function updateRA(END_EFFECTOR)
 		RETURN_VALUE = false
 	end
 	
+	-- Apply constraints
 	if RS_X > Constraints.RS.X[1] then
 		RS_X = 0
 		RE_X = 0
@@ -619,6 +473,7 @@ function updateLA(END_EFFECTOR)
 	local TARGET_VECTOR = getLSCF():inverse() * END_EFFECTOR
 	local TARGET_DIST = TARGET_VECTOR.magnitude
 
+	-- New Euler Angle values
 	local LS_X, LS_Y, LS_Z = 0;
 	local LE_X, LE_Y, LE_Z = 0;
 
@@ -645,7 +500,7 @@ function updateLA(END_EFFECTOR)
 		LS_Y = Constraints.LS.Y[2]
 	end
 	
-	local YZ_RATIO; --Used to make the leg move more naturally
+	local YZ_RATIO; --Used to move more naturally
 	if LS_Z < 0 then
 		YZ_RATIO = math.abs((Constraints.LS.Z[2]-LS_Z)/Constraints.LS.Z[2])
 		LS_Z = LS_Z * YZ_RATIO
@@ -658,6 +513,8 @@ function updateLA(END_EFFECTOR)
 	
 	if TARGET_DIST <= ULALen+ LLALen then
 		-- TARGET WITHIN LEACH --
+		
+		-- Law of Cosines
 		local theta = math.atan2(TARGET_VECTOR.Y, TARGET_VECTOR.Z)
 		if theta > math.pi/2 then
 			theta = theta - 3*math.pi/2
@@ -706,8 +563,8 @@ end
 
 local defNeck = Neck.C0
 function updateNeck(Neck_Target)
-	
-	local TARGET_CFRAME = Torso.CFrame:inverse() * Targets.Neck.CFrame
+	-- Calculate neck angle based on Neck_Target part
+	local TARGET_CFRAME = Torso.CFrame:inverse() * Neck_Target.CFrame
 	local comp = {TARGET_CFRAME:components()}
 	
 	-- remove x,y,z components
